@@ -30,9 +30,11 @@ import org.joda.time.DateTime;
 public class Individual 
 {
 	byte gene[]=new byte[12];
-	public LinkedList<StockEntry> stocklist= new LinkedList<>();
+	public LinkedList<Day> stocklist= new LinkedList<>();
 	int buysellcount[]=new int[10];
-	int profit[]=new int[10];
+	double profit[]=new double[10];
+	double costprice;
+	int buycount;
 	Signal signal = new Signal();
 	
 	public void random_intialize()
@@ -69,15 +71,46 @@ public class Individual
 					
 			Iterator<Row> rowIterator = sheet.iterator();
 			rowIterator.next(); //for headings of column
+			rowIterator.next(); //for first row as it does not contain other data
 			
 			rowIterator=signal.initalizeQueue(rowIterator, this);	
-			
+			Day day=null;
 			while(rowIterator.hasNext())
 			{
-				Day day=getDay(rowIterator);
+				day=getDay(rowIterator);
+				boolean sell_signal = signal.evaluate_sellsignal(day, this, stockno);
+				if(sell_signal)
+				{
+					sell_stocks(day,stockno);
+				}
+				
+				boolean buy_signal=signal.evaluate_buysignal(day, this);
+				if(buy_signal)
+				{
+					buy_stock(day,stockno);
+				}
 				
 			}
+			sell_stocks(day, stockno);
+			buycount=0;
+			costprice=0;
+			System.out.println(profit[stockno]+" "+buysellcount[stockno]);
 		}
+	}
+	
+	void sell_stocks(Day day,int i)
+	{
+		profit[i]+=day.Open*buycount-costprice;
+		buysellcount[i]+=buycount;
+		buycount=0;
+		costprice=0;
+	}
+	
+	void buy_stock(Day day, int i)
+	{
+		stocklist.add(day);
+		costprice += day.Open;
+		buycount++;
 	}
 	
 	Day getDay(Iterator<Row> rowIterator)
@@ -103,6 +136,19 @@ public class Individual
 		
 		cell=cellIterator.next();
 		day.Volume = (int)cell.getNumericCellValue();
+		
+		cell=cellIterator.next();// for upmove
+		cell=cellIterator.next();// for downmove
+		
+		cell=cellIterator.next();
+		day.pDM = cell.getNumericCellValue();
+		
+		cell=cellIterator.next();
+		day.nDM = cell.getNumericCellValue();
+		
+		cell=cellIterator.next();
+		day.TR = cell.getNumericCellValue();
+		
 		return day;
 		
 	}
