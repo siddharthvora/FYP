@@ -11,18 +11,13 @@ import org.joda.time.DateTime;
 public class Signal
 {
 	LinkedList<Double> SMA = new LinkedList<>();
-	LinkedList<Double> SMAofpDM = new LinkedList<Double>();
-	LinkedList<Double> SMAofnDM = new LinkedList<Double>();
-	LinkedList<Double> SMAofTR = new LinkedList<Double>();
-	LinkedList<Double> SMAofADX_modulus = new LinkedList<Double>();
-	
 	
 	boolean flag_SMA=false;
 	boolean flag_DI_buy=false;
 	boolean flag_DI_sell=false;
 	
 	double current_SMA;
-	double lamdaforDI, lamdaforADX;
+	double lamdaforDI, lamdaforADX, lamdaforRSI;
 	double current_EMApDM, previous_EMApDM, current_EMAnDM, previous_EMAnDM;
 	double current_EMA_TR, previous_EMA_TR;
 	
@@ -33,85 +28,64 @@ public class Signal
 	double ADX_modulus;
 	double current_EMA_ADX_modulus, previous_EMA_ADX_modulus;
 	
-	int n1,n2,n3; ///made global
+	double RSI;
+	double current_EMA_GAIN, previous_EMA_GAIN;
+	double current_EMA_LOSS, previous_EMA_LOSS;
+	
+	int n1,n2,n3,n4; ///made global
 	Iterator<Row> initalizeQueue(Iterator<Row> it, Individual individual)
 	{
 		n1 = individual.get_gene(0); //number of days for SMA
 		n2 = individual.get_gene(2); //number of days for +DI, -DI, TR
 		n3 = individual.get_gene(4); //number of days for ADX
+		n4 = individual.get_gene(6); //number of days for RSI
 		Day day;
-		int temp1=0, temp2=0, temp3=0; //temp1 for SMA, temp2 for +DI, -DI, TR, temp3 for ADX
+		int temp1=0, temp2=0, temp3=0, temp4=0; //temp1 for SMA, temp2 for +DI, -DI, TR, temp3 for ADX, temp4 for RSI
 		
 		lamdaforDI = 2.0/(n2+1);
 		lamdaforADX = 2.0/(n3+1);
+		lamdaforRSI = 2.0/(n4+1);
 		
 		while(it.hasNext())
 		{
 			day=individual.getDay(it);
+			
 			if(temp1<n1)
 			{
 				SMA.add(day.Open);
 				current_SMA+=day.Open;
-				temp1++;
-			}
-			else if(temp1==n1)
-			{
-				current_SMA/=n1;
-				current_SMA = update_Queue(SMA, current_SMA, day.Open, n1);
+				if(temp1==(n1-1))
+					current_SMA/=n1;
 				temp1++;
 			}
 			else
 			{
-				if( (day.date).isEqual(new DateTime(2001,1,4,0,0)) )
-					return it;
 				current_SMA = update_Queue(SMA, current_SMA, day.Open, n1);
 				temp1++;
 			}
-			
 			
 			if(temp2<n2)
 			{
-				SMAofpDM.add(day.pDM);
-				SMAofnDM.add(day.nDM);
-				SMAofTR.add(day.TR);
-				
 				current_EMApDM+=day.pDM;
 				current_EMAnDM+=day.nDM;
 				current_EMA_TR+=day.TR;
-				
-				temp2++;
-				
-			}
-			else if(temp2==n2)
-			{
-				current_EMApDM /= n2;
-				current_EMApDM = update_Queue(SMAofpDM, current_EMApDM, day.pDM, n2);
-							
-				current_EMAnDM /= n2;
-				current_EMAnDM = update_Queue(SMAofnDM, current_EMAnDM, day.nDM, n2);
-				
-				current_EMA_TR /= n2;
-				current_EMA_TR = update_Queue(SMAofTR, current_EMA_TR, day.TR, n2);
-								
-				temp2++;
+				if(temp2==(n2-1))
+				{
+					current_EMApDM/=n2;
+					current_EMAnDM/=n2;
+					current_EMA_TR/=n2;
+				}
+				temp2++;	
 			}
 			else
-			{
-				if( (day.date).isEqual(new DateTime(2000,1,6,0,0)) )
-					return it;
-				
+			{				
 				update_DI(day);
 				
 				if(temp3<n3)
 				{
-					SMAofADX_modulus.add(ADX_modulus);
 					current_EMA_ADX_modulus += ADX_modulus;
-					temp3++;
-				}
-				else if(temp3==n3)
-				{
-					current_EMA_ADX_modulus/=n3;
-					current_EMA_ADX_modulus = update_Queue(SMAofADX_modulus, current_EMA_ADX_modulus, ADX_modulus, n3);					
+					if(temp3==(n3-1))
+						current_EMA_ADX_modulus/=n3;
 					temp3++;
 				}
 				else
@@ -119,10 +93,27 @@ public class Signal
 					update_ADX();
 					temp3++;
 				}
-				
 				temp2++;
 			}
-					
+			
+			if(temp4<n4)
+			{
+				current_EMA_GAIN += day.Gain;
+				current_EMA_LOSS += day.Loss;
+				if(temp4==(n4-1))
+				{
+					current_EMA_GAIN /= n4;
+					current_EMA_LOSS /= n4;
+				}
+				temp4++;
+			}
+			else
+			{
+				update_RSI(day);
+			}
+			
+			if( (day.date).isEqual(new DateTime(2000,12,29,0,0)) )
+				return it;
 		}
 		return it;
 	}
@@ -159,6 +150,15 @@ public class Signal
 		previous_EMA_ADX_modulus = current_EMA_ADX_modulus;
 		current_EMA_ADX_modulus = lamdaforADX*ADX_modulus + (1-lamdaforADX)*previous_EMA_ADX_modulus;
 		ADX = 100*current_EMA_ADX_modulus;		
+	}	
+	
+	void update_RSI(Day day)
+	{
+		previous_EMA_GAIN = current_EMA_GAIN;
+		previous_EMA_LOSS = current_EMA_LOSS;
+		current_EMA_GAIN = lamdaforRSI*day.Gain + (1-lamdaforRSI)*previous_EMA_GAIN; //EMA(AVG_GAIN)
+		current_EMA_LOSS = lamdaforRSI*day.Loss + (1-lamdaforRSI)*previous_EMA_LOSS; //EMA(AVG_LOSS)
+		RSI=100-100/(1+(current_EMA_GAIN/current_EMA_LOSS));
 	}
 	
 	boolean evaluate_sellsignal(Day day , Individual individual , int stockno)
@@ -166,12 +166,12 @@ public class Signal
 		LinkedList<Day> stocklist = individual.stocklist;
 		if(!stocklist.isEmpty())
 		{
-			int max_days_to_hold = individual.get_gene(8);
+			int max_days_to_hold = individual.get_gene(9);
 			Day first = stocklist.getFirst();
 			DateTime stock_purchase_day = first.date;
 			DateTime current_day = day.date;
 			current_day.minusDays(max_days_to_hold);
-			if(current_day.isEqual(stock_purchase_day))
+			if(current_day.isEqual(stock_purchase_day) || current_day.isAfter(stock_purchase_day))// The condition should be current_day>=stock_purchase_day because we dont have all days in excel sheet.
 			{
 				stocklist.removeFirst();
 				individual.costprice -= first.Open;
@@ -181,18 +181,18 @@ public class Signal
 			}
 		}
 		
-		double ans=0;
+		double ans=0.0;
 		
 		//SMA
 		if(day.Open<current_SMA)
-			ans += individual.get_gene(1)/100.0; //threshold for sma signal. confirm later
+			ans += individual.get_gene(1)/255.0; //threshold for sma signal. confirm later
 		
 		//DI
 		if(current_nDI > current_pDI)
 		{
 			if(!flag_DI_sell) {
 				flag_DI_sell = true;
-				ans += individual.get_gene(5)/100.0;
+				ans += individual.get_gene(3)/255.0;
 			}
 		}
 		else {
@@ -201,9 +201,12 @@ public class Signal
 		
 		//ADX
 		if(ADX > 25)
-			ans += individual.get_gene(7)/100.0;
+			ans += individual.get_gene(5)/255.0;
 		
-		double sell_threshold=individual.get_gene(11)/100.0;
+		if(RSI < 30)
+			ans += individual.get_gene(7)/255.0;
+		
+		double sell_threshold=individual.get_gene(12)/255.0;
 		if(ans>=sell_threshold)
 			return true;
 		return false;
@@ -211,14 +214,14 @@ public class Signal
 	
 	boolean evaluate_buysignal(Day day, Individual individual)
 	{
-		double ans = 0;
+		double ans=0.0;
 		
 		//SMA
 		if(day.Open > current_SMA)
 		{
 			if(!flag_SMA) {
 				flag_SMA = true;
-				ans += individual.get_gene(1)/100.0;
+				ans += individual.get_gene(1)/255.0;
 			}
 		}
 		else {
@@ -231,7 +234,7 @@ public class Signal
 		{
 			if(!flag_DI_buy) {
 				flag_DI_buy = true;
-				ans += individual.get_gene(5)/100.0;
+				ans += individual.get_gene(3)/255.0;
 			}
 		}		
 		else {
@@ -240,12 +243,17 @@ public class Signal
 		
 		//ADX
 		if(ADX>25)
-			ans += individual.get_gene(7)/100.0;
+			ans += individual.get_gene(5)/255.0;
+		
+		if(RSI>70)
+			ans += individual.get_gene(7)/255.0;
 		
 		update_DI(day);
 		update_ADX();
+		update_RSI(day);
 		
-		double buy_threshold = individual.get_gene(10)/100.0;
+		
+		double buy_threshold = individual.get_gene(11)/255.0;
 		if(ans>=buy_threshold)
 			return true;
 		return false;
