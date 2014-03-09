@@ -1,6 +1,5 @@
 import java.io.IOException;
 
-
 public class Population {
 
 	Individual[] individuals;
