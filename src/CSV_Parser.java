@@ -1,8 +1,6 @@
 
 import java.io.IOException;
 
-import org.joda.time.DateTime;
-
 
 public class CSV_Parser 
 {
@@ -13,18 +11,14 @@ public class CSV_Parser
 	 */
 	public static void main(String[] args) throws IOException {
 		// TODO Auto-generated method stub
-		DateTime dt = new DateTime(2000,1,4,0,0);
-		dt.minusDays(2);
-		System.out.println(dt);
-		
-		Individual i = new Individual();
+		Population myPop = new Population(5000, true);
+		Individual indiv;
+		indiv = myPop.getFittest();
+		indiv.display();
+		System.out.println("\n"+indiv.profit[0]+" "+indiv.buysellcount[0]);
 		/*
-		i.gene[0]=37;
-		i.gene[1]=100;
-		i.gene[2]=3;
-		i.gene[10]=100;
-		i.gene[11]=100;*/
+		Individual i = new Individual();
 		i.random_intialize();
-		i.evaluateFitness();
+		i.evaluateFitness();*/
 	}
 }

@@ -33,14 +33,42 @@ public class Individual
 	public LinkedList<Day> stocklist= new LinkedList<>();
 	int buysellcount[]=new int[10];
 	double profit[]=new double[10];
-	double costprice;
+	double costprice, fitness;
 	int buycount;
 	Signal signal = new Signal();
 	
 	public void random_intialize()
 	{
-		for(int i=0;i<13;i++)
-			gene[i]=(byte) (Math.random()*255);
+		do {
+			gene[0]=(byte) (Math.random()*255);
+		}while(gene[0]==0);
+		
+		gene[1]=(byte) (Math.random()*255);
+		
+		do {
+			gene[2]=(byte) (Math.random()*255);
+		}while(gene[2]==0);
+		
+		gene[3]=(byte) (Math.random()*255);
+		
+		do {
+			gene[4]=(byte) (Math.random()*255);
+		}while(gene[4]==0);
+		
+		gene[5]=(byte) (Math.random()*255);
+		
+		do {
+			gene[6]=(byte) (Math.random()*255);
+		}while(gene[6]==0);
+		
+		gene[6]=(byte) (Math.random()*255);
+		gene[7]=(byte) (Math.random()*255);
+		gene[8]=(byte) (Math.random()*255);
+		gene[9]=(byte) (Math.random()*255);	
+		gene[10]=(byte) (Math.random()*255);
+		gene[11]=(byte) (Math.random()*255);
+		
+		
 		double ans;
 		int w1,w2,w3,w4,w5;
 		w1 = get_gene(1);
@@ -65,6 +93,8 @@ public class Individual
 	
 	public void evaluateFitness() throws NumberFormatException, IOException
 	{
+		try
+		{
 		for(int stockno=0;stockno<1;stockno++) //make 10
 		{
 			//reading xls file
@@ -76,8 +106,7 @@ public class Individual
 			rowIterator.next(); //for headings of column
 			rowIterator.next(); //for first row as it does not contain other data
 			
-			rowIterator=signal.initalizeQueue(rowIterator, this);	
-			
+			rowIterator=signal.initalizeQueue(rowIterator, this);
 			Day day=null;
 			while(rowIterator.hasNext())
 			{
@@ -98,8 +127,18 @@ public class Individual
 			sell_stocks(day, stockno);
 			buycount=0;
 			costprice=0;
+			fitness +=profit[stockno];
 			System.out.println(profit[stockno]+" "+buysellcount[stockno]);
 			display();
+		}
+		}
+		catch(Exception e)
+		{
+			System.out.println();
+			display();
+			throw e;
+			
+			//System.exit(0);
 		}
 	}
 	
@@ -109,6 +148,7 @@ public class Individual
 		buysellcount[i]+=buycount;
 		buycount=0;
 		costprice=0;
+		stocklist.clear();
 	}
 	
 	void buy_stock(Day day, int i)
@@ -122,7 +162,6 @@ public class Individual
 	{
 		Iterator<Cell> cellIterator = rowIterator.next().cellIterator();
 		Day day = new Day();
-		
 		
 		Cell cell=cellIterator.next();
 		day.date = new DateTime(cell.getDateCellValue());
@@ -160,14 +199,18 @@ public class Individual
 		cell=cellIterator.next();
 		day.Loss = cell.getNumericCellValue();
 		
+		day.day_number = cell.getRowIndex();
+		
 		return day;
 		
 	}
+	
 	void display()
 	{
 		for(int i=0;i<13;i++)
 		{
-			System.out.println(gene[i] & 0xFF);
+			System.out.print((gene[i] & 0xFF)+" ");
 		}
+		System.out.println();
 	}
 }

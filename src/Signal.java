@@ -167,11 +167,11 @@ public class Signal
 		if(!stocklist.isEmpty())
 		{
 			int max_days_to_hold = individual.get_gene(9);
+			
 			Day first = stocklist.getFirst();
-			DateTime stock_purchase_day = first.date;
-			DateTime current_day = day.date;
-			current_day.minusDays(max_days_to_hold);
-			if(current_day.isEqual(stock_purchase_day) || current_day.isAfter(stock_purchase_day))// The condition should be current_day>=stock_purchase_day because we dont have all days in excel sheet.
+			int stock_purchase_daynumber = first.day_number;
+			int current_daynumber = day.day_number;
+			if(current_daynumber - stock_purchase_daynumber == max_days_to_hold) //now equal should work
 			{
 				stocklist.removeFirst();
 				individual.costprice -= first.Open;
@@ -181,6 +181,23 @@ public class Signal
 			}
 		}
 		
+		Iterator<Day> stocklist_iterator = stocklist.iterator();
+		while(stocklist_iterator.hasNext())
+		{
+			Day bought_day = stocklist_iterator.next();
+			double profit_percentage = (day.Open-bought_day.Open)/bought_day.Open;
+			double min_profit_to_sell = individual.get_gene(10)/255.0;
+			if(profit_percentage > min_profit_to_sell)
+			{
+				stocklist.remove(bought_day);
+				individual.costprice -= bought_day.Open;
+				individual.profit[stockno] += day.Open - bought_day.Open;
+				individual.buycount--;
+				individual.buysellcount[stockno]++;
+			}
+				
+		}
+
 		double ans=0.0;
 		
 		//SMA
