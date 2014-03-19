@@ -27,7 +27,7 @@ import org.joda.time.DateTime;
 
 
 
-public class Individual 
+public class Individual implements Comparable<Individual>
 {
 	byte gene[]=new byte[13];
 	public LinkedList<Day> stocklist= new LinkedList<>();
@@ -128,8 +128,8 @@ public class Individual
 			buycount=0;
 			costprice=0;
 			fitness +=profit[stockno];
-			System.out.println(profit[stockno]+" "+buysellcount[stockno]);
-			display();
+			//System.out.println(profit[stockno]+" "+buysellcount[stockno]);
+			//display();
 		}
 		}
 		catch(Exception e)
@@ -212,5 +212,15 @@ public class Individual
 			System.out.print((gene[i] & 0xFF)+" ");
 		}
 		System.out.println();
+	}
+
+	@Override
+	public int compareTo(Individual arg0) {
+		// TODO Auto-generated method stub
+		if((arg0.fitness-this.fitness)>0)
+			return 1;
+		else if((arg0.fitness-this.fitness)<0)
+			return -1;
+		return 0;
 	}
 }
