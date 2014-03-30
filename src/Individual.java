@@ -16,7 +16,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.LinkedList;
+import java.util.List;
 
 import org.apache.poi.hssf.usermodel.HSSFSheet;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
@@ -24,18 +24,34 @@ import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.joda.time.DateTime;
 
-
+import java.util.concurrent.CopyOnWriteArrayList;
 
 
 public class Individual implements Comparable<Individual>
 {
 	byte gene[]=new byte[13];
-	public LinkedList<Day> stocklist= new LinkedList<>();
+	public List<Day> stocklist= new CopyOnWriteArrayList<>();
+	
 	int buysellcount[]=new int[10];
+	int buysellcount_training[];
+	int buysellcount_validation[];
+	
 	double profit[]=new double[10];
+	double profit_training[];
+	double profit_validation[];
+	
+	Boolean flag=false;
 	double costprice, fitness;
 	int buycount;
 	Signal signal = new Signal();
+	int stockno;
+	DateTime start_of_trading_period = new DateTime(2006,01,3,0,0); //added for outofsample period
+	
+	int buysellcount_2=0;
+	/*String stocks[]= { "Asahi","Nippon","Nissin","Oji",
+						"Shimizu","Sumitomo Chemical","Sumitomo Heavy"
+						, "Sumitomo" , "Toshiba" , "Toyota" };*/
+	
 	
 	public void random_intialize()
 	{
@@ -52,7 +68,7 @@ public class Individual implements Comparable<Individual>
 		gene[3]=(byte) (Math.random()*255);
 		
 		do {
-			gene[4]=(byte) (Math.random()*255);
+			gene[4]=(byte) (Math.random()*127);
 		}while(gene[4]==0);
 		
 		gene[5]=(byte) (Math.random()*255);
@@ -67,8 +83,12 @@ public class Individual implements Comparable<Individual>
 		gene[9]=(byte) (Math.random()*255);	
 		gene[10]=(byte) (Math.random()*255);
 		gene[11]=(byte) (Math.random()*255);
+		gene[12]=(byte) (Math.random()*255);
 		
-		
+	}
+	
+	public void weight_normalize()
+	{
 		double ans;
 		int w1,w2,w3,w4,w5;
 		w1 = get_gene(1);
@@ -84,6 +104,15 @@ public class Individual implements Comparable<Individual>
 		gene[8] = (byte) (Math.round(w5/ans));
 	}
 	
+	public void gene_check()
+	{
+		if(gene[0]==0) gene[0] = 1;
+		if(gene[2]==0) gene[2] = 1;
+		if(gene[4]==0) gene[4] = 1;
+		if(gene[6]==0) gene[6] = 1;
+		if(gene[4]>127) gene[4] = 127;
+	}
+	
 	public int get_gene(int i)
 	{
 		int x; 
@@ -95,10 +124,11 @@ public class Individual implements Comparable<Individual>
 	{
 		try
 		{
-		for(int stockno=0;stockno<1;stockno++) //make 10
+		for(stockno=0;stockno<1;stockno++) //make 10
 		{
 			//reading xls file
-			FileInputStream file = new FileInputStream(new File("testing.xls"));
+			//FileInputStream file = new FileInputStream(new File(stocks[stockno] + "(Training).xls"));
+			FileInputStream file = new FileInputStream(new File("S&P"+ "(Training).xls"));
 			HSSFWorkbook workbook = new HSSFWorkbook(file);
 			HSSFSheet sheet = workbook.getSheetAt(0);
 					
@@ -128,13 +158,151 @@ public class Individual implements Comparable<Individual>
 			buycount=0;
 			costprice=0;
 			fitness +=profit[stockno];
+			flag=true;
+			file.close();
 			//System.out.println(profit[stockno]+" "+buysellcount[stockno]);
 			//display();
 		}
 		}
 		catch(Exception e)
 		{
-			System.out.println();
+			System.out.println(stockno);
+			display();
+			throw e;
+			
+			//System.exit(0);
+		}
+	}
+	
+	public void evaluateFitnesson_ValidationData() throws NumberFormatException, IOException
+	{
+		profit_training = new double[10];
+		buysellcount_training = new int[10];
+		for(int i=0; i<10; i++)
+		{
+			profit_training[i] = profit[i];
+			profit[i] = 0;
+			
+			buysellcount_training[i] = buysellcount[i];
+			buysellcount[i]=0;
+		}
+		fitness=0;
+		try
+		{
+		for(stockno=0;stockno<1;stockno++) //make 10
+		{
+			//reading xls file
+			buysellcount_2=0;
+			FileInputStream file = new FileInputStream(new File("S&P" + "(Validation).xls"));
+			HSSFWorkbook workbook = new HSSFWorkbook(file);
+			HSSFSheet sheet = workbook.getSheetAt(0);
+					
+			Iterator<Row> rowIterator = sheet.iterator();
+			rowIterator.next(); //for headings of column
+			rowIterator.next(); //for first row as it does not contain other data
+			
+			signal = new Signal();
+			start_of_trading_period = new DateTime(1996,01,8,0,0);
+			
+			rowIterator=signal.initalizeQueue(rowIterator, this);
+			Day day=null;
+			while(rowIterator.hasNext())
+			{
+				day=getDay(rowIterator);
+				boolean sell_signal = signal.evaluate_sellsignal(day, this, stockno);
+				if(sell_signal)
+				{
+					sell_stocks(day,stockno);
+				}
+				
+				boolean buy_signal=signal.evaluate_buysignal(day, this);
+				if(buy_signal)
+				{
+					buy_stock(day,stockno);
+				}
+				
+			}
+			sell_stocks(day, stockno);
+			buycount=0;
+			costprice=0;
+			fitness +=profit[stockno];
+			flag=true;
+			file.close();
+			//System.out.println(profit[stockno]+" "+buysellcount[stockno]);
+			//display();
+		}
+		}
+		catch(Exception e)
+		{
+			System.out.println(stockno);
+			display();
+			throw e;
+			
+			//System.exit(0);
+		}
+	}
+	
+	public void evaluateFitnesson_OutOfSampleData() throws NumberFormatException, IOException
+	{
+		buysellcount_2=0;
+		profit_validation = new double[10];
+		buysellcount_validation = new int[10];
+		for(int i=0; i<10; i++)
+		{
+			profit_validation[i] = profit[i];
+			profit[i] = 0;
+			
+			buysellcount_validation[i] = buysellcount[i];
+			buysellcount[i]=0;
+		}
+		fitness=0;
+		try
+		{
+		for(stockno=0;stockno<1;stockno++) //make 10
+		{
+			//reading xls file
+			FileInputStream file = new FileInputStream(new File("S&P"+ "(Testing).xls"));
+			HSSFWorkbook workbook = new HSSFWorkbook(file);
+			HSSFSheet sheet = workbook.getSheetAt(0);
+					
+			Iterator<Row> rowIterator = sheet.iterator();
+			rowIterator.next(); //for headings of column
+			rowIterator.next(); //for first row as it does not contain other data
+			
+			signal = new Signal();
+			start_of_trading_period = new DateTime(2012,01,9,0,0);
+			
+			rowIterator=signal.initalizeQueue(rowIterator, this);
+			Day day=null;
+			while(rowIterator.hasNext())
+			{
+				day=getDay(rowIterator);
+				boolean sell_signal = signal.evaluate_sellsignal(day, this, stockno);
+				if(sell_signal)
+				{
+					sell_stocks(day,stockno);
+				}
+				
+				boolean buy_signal=signal.evaluate_buysignal(day, this);
+				if(buy_signal)
+				{
+					buy_stock(day,stockno);
+				}
+				
+			}
+			sell_stocks(day, stockno);
+			buycount=0;
+			costprice=0;
+			fitness +=profit[stockno];
+			flag=true;
+			file.close();
+			//System.out.println(profit[stockno]+" "+buysellcount[stockno]);
+			//display();
+		}
+		}
+		catch(Exception e)
+		{
+			System.out.println(stockno);
 			display();
 			throw e;
 			
@@ -210,7 +378,9 @@ public class Individual implements Comparable<Individual>
 		for(int i=0;i<13;i++)
 		{
 			System.out.print((gene[i] & 0xFF)+" ");
+			if(i==12) System.out.print(fitness);
 		}
+		System.out.print(" " + buysellcount_2 + " " + buysellcount[0] );
 		System.out.println();
 	}
 
@@ -222,5 +392,38 @@ public class Individual implements Comparable<Individual>
 		else if((arg0.fitness-this.fitness)<0)
 			return -1;
 		return 0;
+	}
+	
+	String toBinary()
+	{
+	    StringBuilder sb = new StringBuilder(gene.length * Byte.SIZE);
+	    for( int i = 0; i < Byte.SIZE * gene.length; i++ )
+	        sb.append((gene[i / Byte.SIZE] << i % Byte.SIZE & 0x80) == 0 ? '0' : '1');
+	    return sb.toString();
+	}
+	
+	void fromBinary(String s )
+	{
+		char[] chars = s.toCharArray();
+		int p=0;
+		for(int i=0;i<13;i++)
+		{
+			int k = 0;
+			for(int j=7;j>=0;j--)
+			{
+				k += ((chars[p++])=='0'?0:1)*Math.pow(2,j);
+			}
+			gene[i] = (byte) k;
+		}
+	}
+
+	boolean isEqualto(Individual individual)
+	{
+		for(int i=0; i<13; i++)
+		{
+			if(gene[i] != individual.gene[i])
+				return false;
+		}
+		return true;
 	}
 }

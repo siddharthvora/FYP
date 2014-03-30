@@ -1,8 +1,10 @@
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 
 import org.apache.poi.ss.usermodel.Row;
 import org.joda.time.DateTime;
+
 
 /*
  *  Date time value initialised to 4th January 2000 for now. change that to 2001 later
@@ -32,6 +34,8 @@ public class Signal
 	double current_EMA_GAIN, previous_EMA_GAIN;
 	double current_EMA_LOSS, previous_EMA_LOSS;
 	
+	double previous_day_closed;
+	
 	int n1,n2,n3,n4; ///made global
 	Iterator<Row> initalizeQueue(Iterator<Row> it, Individual individual)
 	{
@@ -39,7 +43,7 @@ public class Signal
 		n2 = individual.get_gene(2); //number of days for +DI, -DI, TR
 		n3 = individual.get_gene(4); //number of days for ADX
 		n4 = individual.get_gene(6); //number of days for RSI
-		Day day;
+		Day day = null;
 		int temp1=0, temp2=0, temp3=0, temp4=0; //temp1 for SMA, temp2 for +DI, -DI, TR, temp3 for ADX, temp4 for RSI
 		
 		lamdaforDI = 2.0/(n2+1);
@@ -112,9 +116,13 @@ public class Signal
 				update_RSI(day);
 			}
 			
-			if( (day.date).isEqual(new DateTime(2000,12,29,0,0)) )
+			if( (day.date).isEqual(individual.start_of_trading_period) )
+			{
+				previous_day_closed=day.Close;
 				return it;
+			}
 		}
+		previous_day_closed=day.Close;
 		return it;
 	}
 	
@@ -163,21 +171,22 @@ public class Signal
 	
 	boolean evaluate_sellsignal(Day day , Individual individual , int stockno)
 	{
-		LinkedList<Day> stocklist = individual.stocklist;
+		List<Day> stocklist = individual.stocklist;
 		if(!stocklist.isEmpty())
 		{
 			int max_days_to_hold = individual.get_gene(9);
 			
-			Day first = stocklist.getFirst();
+			Day first = stocklist.get(0);
 			int stock_purchase_daynumber = first.day_number;
 			int current_daynumber = day.day_number;
 			if(current_daynumber - stock_purchase_daynumber == max_days_to_hold) //now equal should work
 			{
-				stocklist.removeFirst();
+				stocklist.remove(0);
 				individual.costprice -= first.Open;
 				individual.profit[stockno] += day.Open - first.Open;
 				individual.buycount--;
 				individual.buysellcount[stockno]++;
+				individual.buysellcount_2++;
 			}
 		}
 		
@@ -189,11 +198,13 @@ public class Signal
 			double min_profit_to_sell = individual.get_gene(10)/255.0;
 			if(profit_percentage > min_profit_to_sell)
 			{
-				stocklist.remove(bought_day);
+				
 				individual.costprice -= bought_day.Open;
 				individual.profit[stockno] += day.Open - bought_day.Open;
 				individual.buycount--;
 				individual.buysellcount[stockno]++;
+				stocklist.remove(bought_day);
+				individual.buysellcount_2++;
 			}
 				
 		}
@@ -201,7 +212,7 @@ public class Signal
 		double ans=0.0;
 		
 		//SMA
-		if(day.Open<current_SMA)
+		if(previous_day_closed<current_SMA)
 			ans += individual.get_gene(1)/255.0; //threshold for sma signal. confirm later
 		
 		//DI
@@ -234,7 +245,7 @@ public class Signal
 		double ans=0.0;
 		
 		//SMA
-		if(day.Open > current_SMA)
+		if(previous_day_closed > current_SMA)
 		{
 			if(!flag_SMA) {
 				flag_SMA = true;
@@ -265,6 +276,7 @@ public class Signal
 		if(RSI>70)
 			ans += individual.get_gene(7)/255.0;
 		
+		previous_day_closed=day.Close;
 		update_DI(day);
 		update_ADX();
 		update_RSI(day);
